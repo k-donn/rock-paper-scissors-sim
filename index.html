@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Rock Paper Scissors Simulator</title>
+		<style>
+			#container {
+				width: 95vw;
+				height: 95vh;
+			}
+			.btn {
+				border: none;
+				color: white;
+				padding: 15px 32px;
+				text-align: center;
+				text-decoration: none;
+				display: inline-block;
+				font-size: 16px;
+				margin: 4px 2px;
+				cursor: pointer;
+			}
+			.btn-start {
+				background-color: #4caf4f; /* Green */
+			}
+			.btn-stop {
+				background-color: #af4c4c; /* Red */
+			}
+			.btn-reset {
+				background-color: #af994c; /* Yellow */
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container">
+			<center id="battleground"></center>
+			<center id="info">
+				<button id="start-btn" class="btn btn-start">Start!</button>
+				<button
+					id="stop-btn"
+					class="btn btn-stop"
+					style="visibility: hidden"
+				>
+					Stop
+				</button>
+				<button
+					id="reset-btn"
+					class="btn btn-reset"
+					style="visibility: hidden"
+				>
+					Reset
+				</button>
+			</center>
+			<center>
+				<span id="status"></span>
+			</center>
+		</div>
+		<script>
+			(function () {
+				let PIXEL_RATIO = (function () {
+					let ctx = document.createElement("canvas").getContext("2d"),
+						dpr = window.devicePixelRatio || 1,
+						bsr =
+							ctx.webkitBackingStorePixelRatio ||
+							ctx.mozBackingStorePixelRatio ||
+							ctx.msBackingStorePixelRatio ||
+							ctx.oBackingStorePixelRatio ||
+							ctx.backingStorePixelRatio ||
+							1;
+
+					return dpr / bsr;
+				})();
+
+				function createHiDPICanvas(w, h, ratio) {
+					if (!ratio) {
+						ratio = PIXEL_RATIO;
+					}
+					let can = document.createElement("canvas");
+					can.width = w * ratio;
+					can.height = h * ratio;
+					can.style.width = w + "px";
+					can.style.height = h + "px";
+					can.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
+					return can;
+				}
+
+				let startBtn = document.querySelector("#start-btn");
+				let stopBtn = document.querySelector("#stop-btn");
+				let resetBtn = document.querySelector("#reset-btn");
+				let statusScreen = document.querySelector("#status");
+
+				let availWidth = 1000;
+				let availHeight = 600;
+
+				//Create canvas with the device resolution.
+				let battleground = createHiDPICanvas(availWidth, availHeight);
+
+				document
+					.querySelector("#battleground")
+					.appendChild(battleground);
+
+				let drawer = battleground.getContext("2d");
+
+				// Compensate for ~10px width of emojis not to generate off canvas
+				function getRandomX() {
+					return Math.random() * (availWidth - 10);
+				}
+
+				function getRandomY() {
+					return Math.random() * (availHeight - 10);
+				}
+
+				let objects = [];
+
+				function generateObjects() {
+					/**objects.push({
+						type: "📃",
+						x: 100,
+						y: 100,
+						direction: { x: 0, y: 0 },
+					});
+					objects.push({
+						type: "🪨",
+						x: 100,
+						y: 200,
+						direction: { x: 0, y: 0 },
+					});
+					objects.push({
+						type: "📃",
+						x: 400,
+						y: 100,
+						direction: { x: 0, y: 0 },
+					});
+					objects.push({
+						type: "🪨",
+						x: 400,
+						y: 200,
+						direction: { x: 0, y: 0 },
+					});*/
+
+					for (let i = 0; i < 99; i++) {
+						objects.push({
+							type: i < 33 ? "🪨" : i < 66 ? "📃" : "✂️",
+							x: getRandomX(),
+							y: getRandomY(),
+							direction: [0, 0],
+						});
+					}
+				}
+
+				function drawObjects() {
+					drawer.font = "10px Arial";
+					drawer.textBaseline = "top";
+					drawer.textAligh = "left";
+
+					for (let i = 0; i < objects.length; i++) {
+						const element = objects[i];
+						drawer.strokeText(
+							element["type"],
+							element["x"],
+							element["y"]
+						);
+					}
+				}
+
+				function calculateMagnitude(a, b) {
+					return Math.sqrt(Math.pow(a, 2) + Math.pow(b, 2));
+				}
+
+				function calculateDistance(obj1, obj2) {
+					let deltaX = obj2.x - obj1.x;
+					let deltaY = obj2.y - obj1.y;
+
+					let magnitude = calculateMagnitude(deltaX, deltaY);
+
+					return {
+						deltaX,
+						deltaY,
+						magnitude,
+					};
+				}
+
+				function calculateDirections() {
+					for (let i = 0; i < objects.length; i++) {
+						// A shallow reference, dont modify; only use to prevent duplication
+						let usedObj = objects[i];
+
+						let attractors, repulsers;
+						if (usedObj.type === "✂️") {
+							attractors = objects.filter((o) => o.type === "📃");
+							repulsers = objects.filter((o) => o.type === "🪨");
+						} else if (usedObj.type === "🪨") {
+							attractors = objects.filter((o) => o.type === "✂️");
+							repulsers = objects.filter((o) => o.type === "📃");
+						} else {
+							attractors = objects.filter((o) => o.type === "🪨");
+							repulsers = objects.filter((o) => o.type === "✂️");
+						}
+
+						if (attractors.length === 0 && repulsers.length === 0) {
+							clearInterval(loopInterval);
+
+							startBtn.setAttribute(
+								"style",
+								"visibility: hidden;"
+							);
+							stopBtn.setAttribute(
+								"style",
+								"visibility: hidden;"
+							);
+							resetBtn.setAttribute(
+								"style",
+								"visibility: visible;"
+							);
+
+							statusScreen.innerHTML = usedObj.type + "wins!";
+							return;
+						}
+
+						let smallestAttraction = {};
+						let smallestMagnitude = 0;
+						for (let j = 0; j < attractors.length; j++) {
+							let attraction = calculateDistance(
+								usedObj,
+								attractors[j]
+							);
+							if (j === 0) {
+								smallestMagnitude = attraction.magnitude;
+								smallestAttraction = attraction;
+							} else {
+								if (attraction.magnitude < smallestMagnitude) {
+									smallestMagnitude = attraction.magnitude;
+									smallestAttraction = attraction;
+								}
+							}
+						}
+
+						let smallestRepulsion = {};
+						let smallestRepulMagnitude = 0;
+						for (let j = 0; j < repulsers.length; j++) {
+							let attraction = calculateDistance(
+								usedObj,
+								repulsers[j]
+							);
+							if (j === 0) {
+								smallestRepulMagnitude = attraction.magnitude;
+								smallestRepulsion = attraction;
+							} else {
+								if (
+									attraction.magnitude <
+									smallestRepulMagnitude
+								) {
+									smallestRepulMagnitude =
+										attraction.magnitude;
+									smallestRepulsion = attraction;
+								}
+							}
+						}
+
+						let attractMovementX, repulseMovementX;
+						let attractMovementY, repulseMovementY;
+						if (attractors.length === 0) {
+							attractMovementX = 0;
+							attractMovementY = 0;
+						} else {
+							attractMovementX =
+								smallestAttraction.deltaX /
+								smallestAttraction.magnitude;
+							attractMovementY =
+								smallestAttraction.deltaY /
+								smallestAttraction.magnitude;
+						}
+
+						if (repulsers.length === 0) {
+							repulseMovementX = 0;
+							repulseMovementY = 0;
+						} else {
+							repulseMovementX =
+								0.5 *
+								(smallestRepulsion.deltaX /
+									smallestRepulsion.magnitude);
+
+							repulseMovementY =
+								0.5 *
+								(smallestRepulsion.deltaY /
+									smallestRepulsion.magnitude);
+						}
+
+						objects[i].direction.x =
+							attractMovementX - repulseMovementX;
+						objects[i].direction.y =
+							attractMovementY - repulseMovementY;
+					}
+				}
+
+				function moveEverything() {
+					calculateDirections();
+					drawer.clearRect(
+						0,
+						0,
+						battleground.width,
+						battleground.height
+					);
+					for (let i = 0; i < objects.length; i++) {
+						let currObj = objects[i];
+
+						let newX = currObj.x + currObj.direction.x / 5;
+						let newY = currObj.y + currObj.direction.y / 5;
+
+						if (newX > battleground.width) {
+							newX = battleground.width;
+						}
+						if (newY > battleground.height) {
+							newY = battleground.height;
+						}
+
+						objects[i].x = newX;
+						objects[i].y = newY;
+
+						// JS is pass by value, don't forget
+						for (let j = 0; j < objects.length && i != j; j++) {
+							let otherObj = objects[j];
+							if (
+								Math.abs(objects[i].x - objects[j].x) < 10 &&
+								Math.abs(objects[i].y - objects[j].y) < 10
+							) {
+								if (
+									(currObj.type === "🪨" &&
+										otherObj.type === "✂️") ||
+									(currObj.type === "✂️" &&
+										otherObj.type === "🪨")
+								) {
+									objects[j].type = "🪨";
+									objects[i].type = "🪨";
+								} else if (
+									(currObj.type === "📃" &&
+										otherObj.type === "🪨") ||
+									(currObj.type === "🪨" &&
+										otherObj.type === "📃")
+								) {
+									objects[j].type = "📃";
+									objects[i].type = "📃";
+								} else if (
+									(currObj.type === "✂️" &&
+										otherObj.type === "📃") ||
+									(currObj.type === "📃" &&
+										otherObj.type === "✂️")
+								) {
+									objects[j].type = "✂️";
+									objects[i].type = "✂️";
+								}
+							}
+						}
+					}
+
+					drawObjects();
+				}
+
+				generateObjects();
+				drawObjects();
+
+				let loopInterval;
+
+				startBtn.addEventListener("click", function (e) {
+					e.preventDefault();
+					loopInterval = setInterval(moveEverything, 50);
+					stopBtn.setAttribute("style", "visibility: visibible;");
+					startBtn.setAttribute("style", "visibility: hidden;");
+				});
+
+				stopBtn.addEventListener("click", function (e) {
+					e.preventDefault();
+					clearInterval(loopInterval);
+					stopBtn.setAttribute("style", "visibility: hidden;");
+					startBtn.setAttribute("style", "visibility: visible;");
+				});
+
+				resetBtn.addEventListener("click", function (e) {
+					e.preventDefault();
+
+					drawer.clearRect(
+						0,
+						0,
+						battleground.width,
+						battleground.height
+					);
+
+					objects = [];
+					generateObjects();
+					drawObjects();
+
+					stopBtn.setAttribute("style", "visibility: hidden;");
+					startBtn.setAttribute("style", "visibility: visible;");
+					resetBtn.setAttribute("style", "visibility: hidden;");
+
+					statusScreen.innerHTML = "";
+				});
+			})();
+		</script>
+	</body>
+</html>
